@@ -1,3 +1,0 @@
-# LibreDB Studio Helm Chart
-
-PLACEHOLDER_WILL_REPLACE
