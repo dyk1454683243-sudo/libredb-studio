@@ -1,1 +1,3 @@
-FILE:/tmp/prs/lb_charts_final.md
+# LibreDB Studio Helm Chart
+
+PLACEHOLDER_WILL_REPLACE
