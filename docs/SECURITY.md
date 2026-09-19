@@ -165,9 +165,26 @@ Setting a `*_MAX` to `0` disables that bucket. A window below one second is rais
 bucket bounds how often a refusal is written to the audit log; it never changes whether a request
 is refused.
 
-**1.4.** Marked Partial: sessions and origin failures are audited, and so is the proxy's `/admin`
-role check — but that line reaches stdout only, never the Admin Audit tab, for the reason under 3.2.
-The rest of this note is stale and tracked separately in #991.
+**1.4.** Marked Partial: sessions and origin failures are audited, and so are role failures.
+The four in-handler admin checks — `GET` and `POST` `/api/admin/audit`, `POST /api/db/maintenance`,
+`POST /api/admin/fleet-health` — each call `auditRoleDenial`, which emits `permission_denied`
+with `reason: "insufficient_role"`. Those run in the application runtime, so the event reaches
+the ring buffer the Admin Audit tab reads. The proxy's `/admin` redirect emits the same reason,
+gated on the same `anon` bucket `auditRoleDenial` uses.
+
+What the grade withholds is a token that fails `jwtVerify` (tampered, wrong signature, expired).
+That path falls into the trailing `catch` in `src/proxy.ts`, which logs a warning and redirects
+to `/login` with no `emitAuditEvent`. A forged-token probe is therefore invisible to the audit
+channel. A missing-token redirect to `/login` is ordinary logged-out traffic and is deliberately
+not in this list. Measured in #991.
+
+Every `permission_denied` emit — the proxy's and `auditRoleDenial`'s — is metered through the
+`anon` bucket under 1.2 (default 5 per 300 s). The denial is unconditional; only its record is
+bounded, so "audited" here means audited up to that budget. The metering itself is deliberate
+and documented at each call site.
+
+The proxy's events do not reach the Admin Audit tab. Mechanism and disclosure are #851's
+subject; 3.2 covers them.
 
 **1.6.** Opt-in: a second factor exists for an account exactly when `ADMIN_TOTP_SECRET` /
 `USER_TOTP_SECRET` is set, so the row claims nothing about a deployment that sets neither.
