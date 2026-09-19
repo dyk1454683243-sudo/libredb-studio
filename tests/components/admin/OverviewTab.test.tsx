@@ -75,6 +75,7 @@ import React from "react";
 import { mockGlobalFetch, restoreGlobalFetch } from "../../helpers/mock-fetch";
 
 import { OverviewTab, DB_TYPES_PREVIEW } from "@/components/admin/tabs/OverviewTab";
+import { adminSectionPath } from "@/lib/admin-sections";
 import { EXTERNAL_DATABASE_TYPES } from "@/lib/db/compatibility";
 import { getDBConfig } from "@/lib/db-ui-config";
 
@@ -393,7 +394,7 @@ describe("OverviewTab", () => {
     await act(async () => {
       renderResult = render(<OverviewTab user={{ username: "admin", role: "admin" }} />);
     });
-    const { queryByText } = renderResult!;
+    const { queryByText, queryByTestId } = renderResult!;
 
     await waitFor(() => {
       // Audit events are mapped into the feed alongside query history
@@ -403,6 +404,33 @@ describe("OverviewTab", () => {
       expect(queryByText("5m ago")).not.toBeNull();
       expect(queryByText("5h ago")).not.toBeNull();
       expect(queryByText("3d ago")).not.toBeNull();
+      // #992: the Audit affordance is not gated on an empty preview
+      const auditLink = queryByTestId("overview-audit-link");
+      expect(auditLink).not.toBeNull();
+      expect(auditLink?.getAttribute("href")).toBe(adminSectionPath("audit"));
+    });
+  });
+
+  // #992: this feed reads the same per-process buffer #851 showed is incomplete.
+  // The Audit affordance is unconditional so the #989 disclosure is one click
+  // away whether the preview is empty or populated, and the empty copy must not
+  // read as "no security events occurred".
+  test("Recent Activity always links to Audit and does not claim an empty feed is complete", async () => {
+    mockGetHistory.mockImplementation(() => []);
+
+    let renderResult: ReturnType<typeof render>;
+    await act(async () => {
+      renderResult = render(<OverviewTab user={{ username: "admin", role: "admin" }} />);
+    });
+    const { queryByTestId, queryByText } = renderResult!;
+
+    await waitFor(() => {
+      const auditLink = queryByTestId("overview-audit-link");
+      expect(auditLink).not.toBeNull();
+      expect(auditLink?.getAttribute("href")).toBe(adminSectionPath("audit"));
+      expect(queryByTestId("overview-recent-activity-empty")).not.toBeNull();
+      expect(queryByText("No application-recorded events in this preview.")).not.toBeNull();
+      expect(queryByText("No recent activity.")).toBeNull();
     });
   });
 
